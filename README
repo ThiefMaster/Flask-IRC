@@ -1,0 +1,4 @@
+Flask-IRC
+
+A set of utilities for use with the Flask framework, which provide
+decorators, classes and helpers for writing an IRC bot.
