@@ -29,6 +29,8 @@ class Bot(object):
             self.init_app(self.app)
         else:
             self.app = None
+        self.nick = None
+        self.server = None
         self.loop = pyev.default_loop()
         self.sock = None
         self.watcher = None
@@ -214,6 +216,8 @@ class Bot(object):
         self._readbuf = ''
         self._writebuf = ''
         self.reconnect()
+        self.nick = None
+        self.server = None
 
     def reconnect(self):
         self._reconnect_tmr.reset()
