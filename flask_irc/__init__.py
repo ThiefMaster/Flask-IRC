@@ -84,6 +84,7 @@ class Bot(object):
             print prefix, colored('>> %s' % line, 'green')
 
     def run(self):
+        """Start the bot and its event loop"""
         self.logger.info('Starting event loop')
         self._connect()
         self._sigwatchers = [pyev.Signal(sig, self.loop, self._sig_cb)
@@ -93,6 +94,7 @@ class Bot(object):
         self.loop.start()
 
     def send(self, line):
+        """Send a line to the IRC server"""
         self._log_io('out', line)
         self._writebuf += line + '\r\n'
         self.watcher.stop()
@@ -100,12 +102,14 @@ class Bot(object):
         self.watcher.start()
 
     def on(self, cmd):
+        """A decorator to register a handler for an IRC command"""
         def decorator(f):
             self._handlers.setdefault(cmd, []).append(f)
             return f
         return decorator
 
     def event(self, evt):
+        """A decorator to register a handler for an event"""
         if evt not in EVENTS:
             raise ValueError('Unknown event name')
         def decorator(f):
@@ -261,6 +265,7 @@ class Bot(object):
         self.server = None
 
     def reconnect(self):
+        """Schedules a reconnection"""
         self._reconnect_tmr.reset()
         delay = self.app.config['IRC_RECONNECT_DELAY']
         self.logger.debug('Reconnecting in %us' % delay)
