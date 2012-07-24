@@ -120,7 +120,7 @@ class Bot(object):
     def _handle_error(self, msg):
         self.logger.warn('Received ERROR: %s' % msg[0])
         self._close()
-        self.reconnect()
+        self._reconnect()
 
     def _handle_ping(self, msg):
         self.send('PONG :%s' % msg[0])
@@ -203,7 +203,7 @@ class Bot(object):
             self.logger.info('Connected to %s:%d' % remote[4])
         if not s:
             self.logger.error('Could not connect')
-            self.reconnect()
+            self._reconnect()
             return
         s.setblocking(0)
         self.sock = s
@@ -224,12 +224,12 @@ class Bot(object):
             if e.args[0] not in NONBLOCKING:
                 self.logger.warn('Error reading from socket: %s' % e)
                 self._close()
-                self.reconnect()
+                self._reconnect()
         else:
             if not buf:
                 self.logger.warn('Socket hung up')
                 self._close()
-                self.reconnect()
+                self._reconnect()
             else:
                 self._readbuf += buf
                 while '\n' in self._readbuf:
@@ -245,7 +245,7 @@ class Bot(object):
             if e.args[0] not in NONBLOCKING:
                 self.logger.warn('Error writing to socket: %s' % e)
                 self._close()
-                self.reconnect()
+                self._reconnect()
         else:
             self._writebuf = self._writebuf[num:]
             if not self._writebuf:
@@ -264,8 +264,7 @@ class Bot(object):
         self.nick = None
         self.server = None
 
-    def reconnect(self):
-        """Schedules a reconnection"""
+    def _reconnect(self):
         self._reconnect_tmr.reset()
         delay = self.app.config['IRC_RECONNECT_DELAY']
         self.logger.debug('Reconnecting in %us' % delay)
