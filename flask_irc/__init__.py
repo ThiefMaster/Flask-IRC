@@ -101,6 +101,7 @@ class Bot(object):
         elif msg == 'ERROR':
             self.logger.warn('Received ERROR: %s' % msg[0])
             self._close()
+            self.reconnect()
 
     def _connected(self):
         if self.app.config['IRC_SERVER_PASS']:
@@ -182,10 +183,12 @@ class Bot(object):
             if e.args[0] not in NONBLOCKING:
                 self.logger.warn('Error reading from socket: %s' % e)
                 self._close()
+                self.reconnect()
         else:
             if not buf:
                 self.logger.warn('Socket hung up')
                 self._close()
+                self.reconnect()
             else:
                 self._readbuf += buf
                 while '\n' in self._readbuf:
@@ -201,6 +204,7 @@ class Bot(object):
             if e.args[0] not in NONBLOCKING:
                 self.logger.warn('Error writing to socket: %s' % e)
                 self._close()
+                self.reconnect()
         else:
             self._writebuf = self._writebuf[num:]
             if not self._writebuf:
@@ -215,7 +219,6 @@ class Bot(object):
         self.watcher = None
         self._readbuf = ''
         self._writebuf = ''
-        self.reconnect()
         self.nick = None
         self.server = None
 
