@@ -20,6 +20,10 @@ __all__ = ['Bot']
 
 NONBLOCKING = (errno.EAGAIN, errno.EWOULDBLOCK)
 STOPSIGNALS = {signal.SIGINT: 'SIGINT', signal.SIGTERM: 'SIGTERM'}
+# Event types; used in the Bot._events dict
+CONNECT = 'connect'
+DISCONNECT = 'disconnect'
+EVENTS = (CONNECT, DISCONNECT)
 
 class Bot(object):
     def __init__(self, app=None, logger_name=None):
@@ -38,6 +42,12 @@ class Bot(object):
         self._readbuf = ''
         delay = self.app.config['IRC_RECONNECT_DELAY']
         self._reconnect_tmr = pyev.Timer(delay, delay, self.loop, self._reconnect_cb)
+        self._handlers = {} # irc events (numerics/commands)
+        self._events = {} # special events (disconnect etc.)
+        # Internal handlers
+        self.on('ERROR')(self._handle_error)
+        self.on('PING')(self._handle_ping)
+        self.on('001')(self._handle_welcome)
 
     def init_app(self, app):
         self.app = app
@@ -89,21 +99,47 @@ class Bot(object):
         self.watcher.set(self.watcher.fd, self.watcher.events | pyev.EV_WRITE)
         self.watcher.start()
 
+    def on(self, cmd):
+        def decorator(f):
+            self._handlers.setdefault(cmd, []).append(f)
+            return f
+        return decorator
+
+    def event(self, evt):
+        if evt not in EVENTS:
+            raise ValueError('Unknown event name')
+        def decorator(f):
+            self._events.setdefault(evt, []).append(f)
+            return f
+        return decorator
+
+    def _handle_error(self, msg):
+        self.logger.warn('Received ERROR: %s' % msg[0])
+        self._close()
+        self.reconnect()
+
+    def _handle_ping(self, msg):
+        self.send('PONG :%s' % msg[0])
+
+    def _handle_welcome(self, msg):
+        self.server = str(msg.source)
+        self.nick = msg[0]
+        self.logger.info('Connected to %s with nick %s' % (self.server, self.nick))
+
     def _parse_line(self, line):
         self._log_io('in', line)
         msg = IRCMessage(line)
-        if msg == 'PING':
-            self.send('PONG :%s' % msg[0])
-        elif msg == '001':
-            self.server = str(msg.source)
-            self.nick = msg[0]
-            self.logger.info('Connected to %s with nick %s' % (self.server, self.nick))
-        elif msg == 'ERROR':
-            self.logger.warn('Received ERROR: %s' % msg[0])
-            self._close()
-            self.reconnect()
+        for handler in self._handlers.get(msg.cmd, []):
+            handler(msg)
+
+    def _trigger_event(self, evt):
+        if evt not in EVENTS:
+            raise ValueError('Unknown event name')
+        for handler in self._events.get(evt, []):
+            handler()
 
     def _connected(self):
+        self._trigger_event(CONNECT)
         if self.app.config['IRC_SERVER_PASS']:
             self.send('PASS :%s' % self.app.config['IRC_SERVER_PASS'])
         self.send('NICK %s' % self.app.config['IRC_NICK'])
@@ -113,6 +149,7 @@ class Bot(object):
     def _sig_cb(self, watcher, revents):
         sig = STOPSIGNALS[watcher.signum]
         self.logger.info('Received signal %s; terminating' % sig)
+        self._close()
         self.loop.stop(pyev.EVBREAK_ALL)
 
     def _connect(self):
@@ -219,6 +256,7 @@ class Bot(object):
         self.watcher = None
         self._readbuf = ''
         self._writebuf = ''
+        self._trigger_event(DISCONNECT)
         self.nick = None
         self.server = None
 
@@ -249,9 +287,6 @@ class IRCMessage(object):
             self.args = line.split(' ') + [long_arg]
         else:
             self.args = line.split(' ')
-
-    def __eq__(self, other):
-        return self.cmd == other
 
     def __getitem__(self, key):
         return self.args[key]
