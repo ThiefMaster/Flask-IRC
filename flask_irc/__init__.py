@@ -424,11 +424,14 @@ class BotModule(object):
         if not self._import_name:
             return False
         pymod = importlib.import_module(self._import_name)
-        if not hasattr(pymod, 'MODULES'):
-            return False
         mod_var = None
-        for name in pymod.MODULES:
-            if getattr(pymod, name).name == self.name:
+        for name in dir(pymod):
+            if name[0] == '_':
+                continue
+            candidate = getattr(pymod, name)
+            if not isinstance(candidate, BotModule):
+                continue
+            if candidate.name == self.name:
                 mod_var = name
                 break
         if not mod_var:
