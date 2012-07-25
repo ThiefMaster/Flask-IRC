@@ -25,7 +25,8 @@ STOPSIGNALS = {signal.SIGINT: 'SIGINT', signal.SIGTERM: 'SIGTERM'}
 CONNECT = 'connect'
 DISCONNECT = 'disconnect'
 READY = 'ready'
-BOT_EVENTS = (CONNECT, DISCONNECT, READY)
+TERMINATE = 'terminate'
+BOT_EVENTS = (CONNECT, DISCONNECT, READY, TERMINATE)
 # Module event types
 INIT = 'init'
 RELOAD = 'reload'
@@ -191,6 +192,7 @@ class Bot(object):
     def _sig_cb(self, watcher, revents):
         sig = STOPSIGNALS[watcher.signum]
         self.logger.info('Received signal %s; terminating' % sig)
+        self._trigger_event(TERMINATE)
         self._close()
         self.loop.stop(pyev.EVBREAK_ALL)
 
