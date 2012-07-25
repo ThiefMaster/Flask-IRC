@@ -439,7 +439,7 @@ class BotModule(object):
             self.logger = self.bot.logger
         else:
             self.logger = self.bot.logger.getChild(self._logger_name)
-            if self.app.debug:
+            if self.bot.app.debug:
                 # Nasty hack. But it works.
                 self.logger.__class__ = self.bot.logger.__class__
 
