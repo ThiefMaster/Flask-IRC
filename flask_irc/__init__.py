@@ -150,7 +150,8 @@ class Bot(object):
         self._timers.append(tmr)
 
     def load_module(self, name):
-        if name not in modules:
+        """Loads a module"""
+        if name not in modules or name in self.modules:
             return False
         modules[name].init_bot(self)
         return True
