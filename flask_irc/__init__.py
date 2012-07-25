@@ -44,6 +44,7 @@ class Bot(object):
         self._reconnect_tmr = pyev.Timer(delay, delay, self.loop, self._reconnect_cb)
         self._handlers = {} # irc events (numerics/commands)
         self._events = {} # special events (disconnect etc.)
+        self._timers = []
         # Internal handlers
         self.on('ERROR')(self._handle_error)
         self.on('PING')(self._handle_ping)
@@ -116,6 +117,14 @@ class Bot(object):
             self._events.setdefault(evt, []).append(f)
             return f
         return decorator
+
+    def after(self, delay, func):
+        def cb(watcher, revents):
+            self._timers.remove(watcher)
+            func()
+        tmr = pyev.Timer(delay, 0, self.loop, cb)
+        tmr.start()
+        self._timers.append(tmr)
 
     def _handle_error(self, msg):
         self.logger.warn('Received ERROR: %s' % msg[0])
