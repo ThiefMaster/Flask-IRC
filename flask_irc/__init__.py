@@ -125,8 +125,10 @@ class Bot(object):
         """A decorator to register a handler for an IRC command"""
         def decorator(f):
             self._handlers.setdefault(cmd, []).append(f)
-            if _module:
-                self._module_handlers.setdefault(_module.name, []).append((cmd, f))
+            # Record module handlers
+            inst = getattr(f, 'im_self', None)
+            if isinstance(inst, BotModule):
+                self._module_handlers.setdefault(inst.name, []).append((cmd, f))
             return f
         return decorator
 
