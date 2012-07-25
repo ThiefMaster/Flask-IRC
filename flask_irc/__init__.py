@@ -50,6 +50,7 @@ class Bot(object):
         self._writebuf = ''
         self._readbuf = ''
         self._handlers = {} # irc events (numerics/commands)
+        self._module_handlers = {} # handlers registered by modules
         self._events = {} # special events (disconnect etc.)
         self._timers = []
         self.modules = {}
@@ -120,10 +121,12 @@ class Bot(object):
         self.watcher.set(self.watcher.fd, self.watcher.events | pyev.EV_WRITE)
         self.watcher.start()
 
-    def on(self, cmd):
+    def on(self, cmd, _module=None):
         """A decorator to register a handler for an IRC command"""
         def decorator(f):
             self._handlers.setdefault(cmd, []).append(f)
+            if _module:
+                self._module_handlers.setdefault(_module.name, []).append((cmd, f))
             return f
         return decorator
 
@@ -162,6 +165,10 @@ class Bot(object):
             msg = 'A module named %s is not registered' % module.name
             raise ValueError(msg)
         del self.modules[module.name]
+        # Remove module's handlers
+        for cmd, f in self._module_handlers.get(module.name, []):
+            self._handlers[cmd].remove(f)
+        self._module_handlers.pop(module.name, None)
         self.logger.debug('Unregistered module %s' % module.name)
 
     def trigger_ready(self):
