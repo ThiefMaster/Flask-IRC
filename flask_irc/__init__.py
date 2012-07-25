@@ -417,19 +417,13 @@ class _ModuleState(object):
 
 
 class BotModule(object):
-    def __init__(self, name, import_name=None, bot=None, logger_name=None):
+    def __init__(self, name, import_name=None, logger_name=None):
         self._import_name = import_name
         self.name = name
         self._logger_name = logger_name
         self._reload_module = reload
         self.g = _ModuleState()
-        if bot is not None:
-            if self._import_name:
-                msg = 'Cannot assign reloadable module to a bot on creation'
-                raise ValueError(msg)
-            self.init_bot(bot)
-        else:
-            self.bot = None
+        self.bot = None
         self._events = {}
 
     def init_bot(self, bot, _state=None):
