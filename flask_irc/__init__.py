@@ -1,6 +1,7 @@
 # vim: fileencoding=utf8
 
 import errno
+import importlib
 import itertools
 import pyev
 import signal
@@ -23,7 +24,13 @@ STOPSIGNALS = {signal.SIGINT: 'SIGINT', signal.SIGTERM: 'SIGTERM'}
 # Event types; used in the Bot._events dict
 CONNECT = 'connect'
 DISCONNECT = 'disconnect'
-EVENTS = (CONNECT, DISCONNECT)
+READY = 'ready'
+BOT_EVENTS = (CONNECT, DISCONNECT, READY)
+# Module event types
+INIT = 'init'
+RELOAD = 'reload'
+UNLOAD = 'unload'
+MOD_EVENTS = BOT_EVENTS + (INIT, RELOAD, UNLOAD)
 
 class Bot(object):
     def __init__(self, app=None, logger_name=None):
@@ -35,6 +42,7 @@ class Bot(object):
             self.app = None
         self.nick = None
         self.server = None
+        self.ready = False
         self.loop = pyev.default_loop()
         self.sock = None
         self.watcher = None
@@ -45,6 +53,7 @@ class Bot(object):
         self._handlers = {} # irc events (numerics/commands)
         self._events = {} # special events (disconnect etc.)
         self._timers = []
+        self.modules = {}
         # Internal handlers
         self.on('ERROR')(self._handle_error)
         self.on('PING')(self._handle_ping)
@@ -111,7 +120,7 @@ class Bot(object):
 
     def event(self, evt):
         """A decorator to register a handler for an event"""
-        if evt not in EVENTS:
+        if evt not in BOT_EVENTS:
             raise ValueError('Unknown event name')
         def decorator(f):
             self._events.setdefault(evt, []).append(f)
@@ -125,6 +134,24 @@ class Bot(object):
         tmr = pyev.Timer(delay, 0, self.loop, cb)
         tmr.start()
         self._timers.append(tmr)
+
+    def register_module(self, module):
+        if module.name in self.modules:
+            msg = 'A module named %s is already registered' % module.name
+            raise ValueError(msg)
+        self.modules[module.name] = module
+        self.logger.debug('Registered module %s' % module.name)
+
+    def unregister_module(self, module):
+        if module.name not in self.modules:
+            msg = 'A module named %s is not registered' % module.name
+            raise ValueError(msg)
+        del self.modules[module.name]
+        self.logger.debug('Unregistered module %s' % module.name)
+
+    def trigger_ready(self):
+        self.ready = True
+        self._trigger_event(READY)
 
     def _handle_error(self, msg):
         self.logger.warn('Received ERROR: %s' % msg[0])
@@ -145,11 +172,13 @@ class Bot(object):
         for handler in self._handlers.get(msg.cmd, []):
             handler(msg)
 
-    def _trigger_event(self, evt):
-        if evt not in EVENTS:
+    def _trigger_event(self, evt, *args):
+        if evt not in BOT_EVENTS:
             raise ValueError('Unknown event name')
         for handler in self._events.get(evt, []):
-            handler()
+            handler(*args)
+        for module in self.modules.itervalues():
+            module._trigger_event(evt, *args)
 
     def _connected(self):
         self._trigger_event(CONNECT)
@@ -272,6 +301,7 @@ class Bot(object):
         self._trigger_event(DISCONNECT)
         self.nick = None
         self.server = None
+        self.ready = False
 
     def _reconnect(self):
         self._reconnect_tmr.reset()
@@ -314,6 +344,7 @@ class IRCMessage(object):
         else:
             return '<IRCMessage(%r)>' % self.line
 
+
 class IRCSource(object):
     def __init__(self, source):
         self.source = source
@@ -334,6 +365,7 @@ class IRCSource(object):
     def __repr__(self):
         return 'IRCSource(%r)' % self.source
 
+
 class IRCSourceNone(object):
     def __init__(self):
         self.source = None
@@ -348,3 +380,90 @@ class IRCSourceNone(object):
 
     def __repr__(self):
         return 'IRCSourceNone()'
+
+
+class _ModuleState(object):
+    def __repr__(self):
+        return '<ModuleState(%r)>' % self.__dict__
+
+
+class BotModule(object):
+    def __init__(self, name, import_name=None, bot=None, logger_name=None):
+        self._import_name = import_name
+        self.name = name
+        self._logger_name = logger_name
+        self._reload_module = reload
+        self.g = _ModuleState()
+        if bot is not None:
+            if self._import_name:
+                msg = 'Cannot assign reloadable module to a bot on creation'
+                raise ValueError(msg)
+            self.init_bot(bot)
+        else:
+            self.bot = None
+        self._events = {}
+
+    def init_bot(self, bot, _state=None):
+        self.bot = bot
+        self._init_logger()
+        self.bot.register_module(self)
+        self._trigger_event(INIT, _state)
+        if self.bot.ready:
+            self._trigger_event(READY)
+
+    def _init_logger(self):
+        if not self._logger_name:
+            self.logger = self.bot.logger
+        else:
+            self.logger = self.bot.logger.getChild(self._logger_name)
+            if self.app.debug:
+                # Nasty hack. But it works.
+                self.logger.__class__ = self.bot.logger.__class__
+
+    def reload(self):
+        if not self._import_name:
+            return False
+        pymod = importlib.import_module(self._import_name)
+        if not hasattr(pymod, 'MODULES'):
+            return False
+        mod_var = None
+        for name in pymod.MODULES:
+            if getattr(pymod, name).name == self.name:
+                mod_var = name
+                break
+        if not mod_var:
+            return False
+        self.bot.unregister_module(self)
+        self._trigger_event(RELOAD)
+        pymod = reload(pymod)
+        mod = getattr(pymod, mod_var)
+        mod.init_bot(self.bot, _state=self.g)
+        return True
+
+    def unload(self):
+        self.bot.unregister_module(self)
+        self._trigger_event(UNLOAD)
+
+    def event(self, evt):
+        """A decorator to register a handler for an event"""
+        if evt not in MOD_EVENTS:
+            raise ValueError('Unknown event name')
+        def decorator(f):
+            self._events.setdefault(evt, []).append(f)
+            return f
+        return decorator
+
+    def command(self, name):
+        """A decorator to register a command"""
+        def decorator(f):
+            return f
+        return decorator
+
+    def _trigger_event(self, evt, *args):
+        if evt not in MOD_EVENTS:
+            raise ValueError('Unknown event name')
+        for handler in self._events.get(evt, []):
+            handler(*args)
+
+    def __repr__(self):
+        return '<BotModule(%s)>' % self.name
