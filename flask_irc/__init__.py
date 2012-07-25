@@ -9,6 +9,8 @@ import socket
 import sys
 from datetime import datetime
 
+from .structs import CommandStorage
+
 try:
     from termcolor import cprint, colored
 except ImportErrror:
@@ -54,10 +56,12 @@ class Bot(object):
         self._events = {} # special events (disconnect etc.)
         self._timers = []
         self.modules = {}
+        self._commands = CommandStorage()
         # Internal handlers
         self.on('ERROR')(self._handle_error)
         self.on('PING')(self._handle_ping)
         self.on('001')(self._handle_welcome)
+        self.on('PRIVMSG')(self._handle_privmsg)
         if app is not None:
             self.app = app
             self.init_app(self.app)
@@ -161,7 +165,13 @@ class Bot(object):
         if module.name in self.modules:
             msg = 'A module named %s is already registered' % module.name
             raise ValueError(msg)
+        if any(cmd in self._commands for cmd in module._commands):
+            msg = 'The module %s contains a command colliding with an existing command' % (
+                module.name)
+            raise ValueError(msg)
         self.modules[module.name] = module
+        for cmd, func in module._commands.iteritems():
+            self._commands[cmd] = func
         self.logger.debug('Registered module %s' % module.name)
 
     def _unregister_module(self, module):
@@ -169,6 +179,9 @@ class Bot(object):
             msg = 'A module named %s is not registered' % module.name
             raise ValueError(msg)
         del self.modules[module.name]
+        # Remove module's commands
+        for cmd, func in module._commands.iteritems():
+            del self._commands[cmd]
         # Remove module's handlers
         for cmd, f in self._module_handlers.get(module.name, []):
             self._handlers[cmd].remove(f)
@@ -193,6 +206,20 @@ class Bot(object):
         self.server = str(msg.source)
         self.nick = msg[0]
         self.logger.info('Connected to %s with nick %s' % (self.server, self.nick))
+
+    def _handle_privmsg(self, msg):
+        line = msg[1]
+        if msg[0] == self.nick:
+            channel = None
+        else:
+            channel = msg[0]
+            trigger = self.app.config['IRC_TRIGGER']
+            if not trigger or not line.startswith(trigger):
+                return
+            line = line[len(trigger):]
+        func, args = self._commands[line]
+        if func:
+            func(msg.source, args)
 
     def _parse_line(self, line):
         self._log_io('in', line)
@@ -425,6 +452,7 @@ class BotModule(object):
         self.g = _ModuleState()
         self.bot = None
         self._events = {}
+        self._commands = {}
 
     def init_bot(self, bot, _state=None):
         self.bot = bot
@@ -484,6 +512,9 @@ class BotModule(object):
     def command(self, name):
         """A decorator to register a command"""
         def decorator(f):
+            if name in self._commands:
+                raise ValueError('A command named %s already exists' % name)
+            self._commands[name] = f
             return f
         return decorator
 
