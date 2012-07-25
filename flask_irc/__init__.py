@@ -41,11 +41,6 @@ def register_module(module):
 class Bot(object):
     def __init__(self, app=None, logger_name=None):
         self._logger_name = logger_name
-        if app is not None:
-            self.app = app
-            self.init_app(self.app)
-        else:
-            self.app = None
         self.nick = None
         self.server = None
         self.ready = False
@@ -54,8 +49,6 @@ class Bot(object):
         self.watcher = None
         self._writebuf = ''
         self._readbuf = ''
-        delay = self.app.config['IRC_RECONNECT_DELAY']
-        self._reconnect_tmr = pyev.Timer(delay, delay, self.loop, self._reconnect_cb)
         self._handlers = {} # irc events (numerics/commands)
         self._events = {} # special events (disconnect etc.)
         self._timers = []
@@ -64,6 +57,11 @@ class Bot(object):
         self.on('ERROR')(self._handle_error)
         self.on('PING')(self._handle_ping)
         self.on('001')(self._handle_welcome)
+        if app is not None:
+            self.app = app
+            self.init_app(self.app)
+        else:
+            self.app = None
 
     def init_app(self, app):
         self.app = app
@@ -77,7 +75,12 @@ class Bot(object):
         app.config.setdefault('IRC_TRIGGER', None)
         app.config.setdefault('IRC_RECONNECT_DELAY', 2)
         app.config.setdefault('IRC_DEBUG', False)
+        app.config.setdefault('IRC_MODULES', [])
         self._init_logger()
+        for name in app.config['IRC_MODULES']:
+            self.load_module(name)
+        delay = self.app.config['IRC_RECONNECT_DELAY']
+        self._reconnect_tmr = pyev.Timer(delay, delay, self.loop, self._reconnect_cb)
 
     def _init_logger(self):
         if not self._logger_name:
