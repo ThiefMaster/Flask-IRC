@@ -174,8 +174,10 @@ class Bot(object):
         self.logger.debug('Unregistered module %s' % module.name)
 
     def trigger_ready(self):
-        self.ready = True
-        self._trigger_event(READY)
+        """Triggers the 'ready' event"""
+        if not self.ready:
+            self.ready = True
+            self._trigger_event(READY)
 
     def _handle_error(self, msg):
         self.logger.warn('Received ERROR: %s' % msg[0])
