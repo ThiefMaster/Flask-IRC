@@ -287,10 +287,11 @@ class Bot(object):
 class IRCMessage(object):
     def __init__(self, line):
         self.line = line
-        self.source = None
         if line[0] == ':':
             source, line = line[1:].split(' ', 1)
             self.source = IRCSource(source)
+        else:
+            self.source = IRCSourceNone()
         cmd, line = line.split(' ', 1)
         self.cmd = cmd.upper()
         if line.startswith(':'):
@@ -332,3 +333,18 @@ class IRCSource(object):
 
     def __repr__(self):
         return 'IRCSource(%r)' % self.source
+
+class IRCSourceNone(object):
+    def __init__(self):
+        self.source = None
+        self.complete = False
+        self.nick = self.ident = self.host = None
+
+    def __nonzero__(self):
+        return False
+
+    def __str__(self):
+        return ''
+
+    def __repr__(self):
+        return 'IRCSourceNone()'
