@@ -142,6 +142,7 @@ class Bot(object):
         return decorator
 
     def after(self, delay, func):
+        """Creates a timer that calls func after delay seconds"""
         def cb(watcher, revents):
             self._timers.remove(watcher)
             func()
@@ -449,6 +450,7 @@ class BotModule(object):
                 self.logger.__class__ = self.bot.logger.__class__
 
     def reload(self):
+        """Reloads the module (if it's reloadable)"""
         if not self._import_name:
             return False
         pymod = importlib.import_module(self._import_name)
@@ -472,6 +474,7 @@ class BotModule(object):
         return True
 
     def unload(self):
+        """Unloads the module"""
         self.bot._unregister_module(self)
         self._trigger_event(UNLOAD)
 
