@@ -17,7 +17,7 @@ except ImportErrror:
     def colored(msg, *args, **kwargs):
         return msg
 
-__all__ = ['Bot']
+__all__ = ['Bot', 'BotModule', 'register_module']
 
 NONBLOCKING = (errno.EAGAIN, errno.EWOULDBLOCK)
 STOPSIGNALS = {signal.SIGINT: 'SIGINT', signal.SIGTERM: 'SIGTERM'}
@@ -32,6 +32,11 @@ INIT = 'init'
 RELOAD = 'reload'
 UNLOAD = 'unload'
 MOD_EVENTS = BOT_EVENTS + (INIT, RELOAD, UNLOAD)
+
+modules = {}
+
+def register_module(module):
+    modules[module.name] = module
 
 class Bot(object):
     def __init__(self, app=None, logger_name=None):
@@ -136,14 +141,20 @@ class Bot(object):
         tmr.start()
         self._timers.append(tmr)
 
-    def register_module(self, module):
+    def load_module(self, name):
+        if name not in modules:
+            return False
+        modules[name].init_bot(self)
+        return True
+
+    def _register_module(self, module):
         if module.name in self.modules:
             msg = 'A module named %s is already registered' % module.name
             raise ValueError(msg)
         self.modules[module.name] = module
         self.logger.debug('Registered module %s' % module.name)
 
-    def unregister_module(self, module):
+    def _unregister_module(self, module):
         if module.name not in self.modules:
             msg = 'A module named %s is not registered' % module.name
             raise ValueError(msg)
@@ -408,7 +419,7 @@ class BotModule(object):
     def init_bot(self, bot, _state=None):
         self.bot = bot
         self._init_logger()
-        self.bot.register_module(self)
+        self.bot._register_module(self)
         self._trigger_event(INIT, _state)
         if self.bot.ready:
             self._trigger_event(READY)
@@ -438,7 +449,7 @@ class BotModule(object):
                 break
         if not mod_var:
             return False
-        self.bot.unregister_module(self)
+        self.bot._unregister_module(self)
         self._trigger_event(RELOAD)
         pymod = reload(pymod)
         mod = getattr(pymod, mod_var)
@@ -446,7 +457,7 @@ class BotModule(object):
         return True
 
     def unload(self):
-        self.bot.unregister_module(self)
+        self.bot._unregister_module(self)
         self._trigger_event(UNLOAD)
 
     def event(self, evt):
