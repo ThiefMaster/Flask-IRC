@@ -10,6 +10,7 @@ import sys
 from datetime import datetime
 
 from .structs import CommandStorage
+from .utils import to_unicode
 
 try:
     from termcolor import cprint, colored
@@ -120,6 +121,7 @@ class Bot(object):
 
     def send(self, line):
         """Send a line to the IRC server"""
+        line = line.encode('utf-8')
         self._log_io('out', line)
         self._writebuf += line + '\r\n'
         self.watcher.stop()
@@ -373,6 +375,7 @@ class Bot(object):
 
 class IRCMessage(object):
     def __init__(self, line):
+        line = to_unicode(line)
         self.line = line
         if line[0] == ':':
             source, line = line[1:].split(' ', 1)
