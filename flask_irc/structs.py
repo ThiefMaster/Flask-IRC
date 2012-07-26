@@ -68,13 +68,14 @@ class CommandStorage(object):
     >>> bool(cs)
     False
     """
-    def _get_key(self, cmd):
-        return tuple(cmd.lower().split(' '))
-
-    def __init__(self, commands={}):
+    def __init__(self, commands={}, splitter=lambda s: s.split(' ')):
         self._dict = {}
+        self._splitter = splitter
         for cmd, value in commands.iteritems():
             self[cmd] = value
+
+    def _get_key(self, cmd):
+        return tuple(self._splitter(cmd.lower()))
 
     def __setitem__(self, cmd, value):
         key = self._get_key(cmd)
@@ -113,7 +114,7 @@ class CommandStorage(object):
         return self._dict.itervalues()
 
     def lookup(self, line):
-        args = line.split(' ')
+        args = self._splitter(line)
         parts = self._get_key(line)
         # start with longest match, work backwards
         # first match found will be longest match
