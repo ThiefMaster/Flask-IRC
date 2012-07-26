@@ -61,7 +61,7 @@ class CommandStorage(object):
     def __init__(self, commands={}):
         self._root = {}
         self._commands = {}
-        for cmd, value in commands:
+        for cmd, value in commands.iteritems():
             self[cmd] = value
 
     def __setitem__(self, cmd, value):
