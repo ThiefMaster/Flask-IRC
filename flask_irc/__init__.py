@@ -217,7 +217,7 @@ class Bot(object):
             if not trigger or not line.startswith(trigger):
                 return
             line = line[len(trigger):]
-        func, args = self._commands[line]
+        func, args = self._commands.lookup(line)
         if func:
             func(msg.source, args)
 
