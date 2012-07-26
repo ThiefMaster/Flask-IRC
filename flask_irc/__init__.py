@@ -70,6 +70,7 @@ class Bot(object):
 
     def init_app(self, app):
         self.app = app
+        self.loop.debug = app.debug
         app.config.setdefault('IRC_SERVER_BIND', None)
         app.config.setdefault('IRC_SERVER_HOST', '127.0.0.1')
         app.config.setdefault('IRC_SERVER_PORT', 6667)
