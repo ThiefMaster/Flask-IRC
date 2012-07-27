@@ -1,7 +1,9 @@
 # vim: fileencoding=utf8
 
+import argparse
 import errno
 import importlib
+import inspect
 import itertools
 import pyev
 import signal
@@ -10,7 +12,7 @@ import sys
 from datetime import datetime
 
 from .structs import CommandStorage
-from .utils import to_unicode
+from .utils import to_unicode, trim_docstring
 
 try:
     from termcolor import cprint, colored
@@ -40,6 +42,7 @@ modules = {}
 
 def register_module(module):
     modules[module.name] = module
+
 
 class Bot(object):
     def __init__(self, app=None, logger_name=None):
@@ -127,6 +130,10 @@ class Bot(object):
         self.watcher.stop()
         self.watcher.set(self.watcher.fd, self.watcher.events | pyev.EV_WRITE)
         self.watcher.start()
+
+    def send_multi(self, fmt, data):
+        for item in data:
+            self.send(fmt % (item or ' '))
 
     def on(self, cmd, _module=None):
         """A decorator to register a handler for an IRC command"""
@@ -220,9 +227,27 @@ class Bot(object):
             if not trigger or not line.startswith(trigger):
                 return
             line = line[len(trigger):]
-        func, args = self._commands.lookup(line)
-        if func:
-            func(msg.source, args)
+        try:
+            cmd, args = self._commands.lookup(line)
+        except ValueError, e:
+            self.send('NOTICE %s :%s' % (msg.source.nick, e))
+            return
+        if cmd:
+            self._run_command(msg, channel, cmd, args)
+
+    def _run_command(self, msg, channel, cmd, args):
+        try:
+            ret = cmd(self.app, msg.source, channel, args)
+        except _CommandAborted, e:
+            self.send_multi('NOTICE %s :%%s' % msg.source.nick, unicode(e).splitlines())
+            return
+        else:
+            log = '(%s) [%s]: %s %s' % (channel or '', msg.source.nick, cmd.name,
+                ' '.join(args))
+            cmd.module.logger.info(log.rstrip())
+        if not ret:
+            return
+        self.send_multi('NOTICE %s :%%s' % msg.source.nick, ret)
 
     def _parse_line(self, line):
         self._log_io('in', line)
@@ -513,12 +538,15 @@ class BotModule(object):
             return f
         return decorator
 
-    def command(self, name):
-        """A decorator to register a command"""
+    def command(self, name, greedy=False):
+        """A decorator to register a command
+
+        If the greedy flag is set the last positional argument will include
+        all following unused arguments."""
         def decorator(f):
             if name in self._commands:
                 raise ValueError('A command named %s already exists' % name)
-            self._commands[name] = f
+            self._commands[name] = _BotCommand(self, name, f, greedy)
             return f
         return decorator
 
@@ -530,3 +558,118 @@ class BotModule(object):
 
     def __repr__(self):
         return '<BotModule(%s)>' % self.name
+
+
+class _CommandAborted(Exception): pass
+
+class _BotCommand(object):
+    def __init__(self, module, name, func, greedy):
+        self.module = module
+        self.name = name
+        self._func = func
+        self._greedy = greedy
+        self._greedy_arg = None
+        self.shorthelp = None
+        self.longhelp = None
+        if func.__doc__:
+            parts = trim_docstring(func.__doc__).split('\n', 1)
+            self.shorthelp = parts[0].strip()
+            if len(parts) > 1:
+                self.longhelp = parts[1].strip()
+        self._make_parser()
+
+    def _make_parser(self):
+        description = self.longhelp and self.longhelp.replace('\n', ' ')
+        self._parser = _BotArgumentParser(prog=self.name, description=description)
+        args, varargs, keywords, defaults = inspect.getargspec(self._func)
+        if keywords:
+            raise ValueError('A command function cannot accept **kwargs')
+        if self._greedy and varargs:
+            raise ValueError('A command with a greedy argument cannot accept *args')
+        self._varargs = bool(varargs)
+        del args[:2] # skip `source` and `channel` arguments
+        # {argname: defaultvalue} mapping
+        defaults = dict(zip(*[reversed(l) for l in (args, defaults or [])]))
+        # The greedy arg is the last one without a default value
+        if self._greedy:
+            self._greedy_arg = [arg for arg in args if arg not in defaults][-1]
+        for arg in args:
+            if arg in defaults:
+                default = defaults[arg]
+                argspec = ['--%s' % arg]
+                if arg[0] != 'h' and not any(arg[0] == a[0] and arg != a for a in args):
+                    argspec.append('-%s' % arg[0])
+                if isinstance(default, bool):
+                    action = 'store_%s' % str(not default).lower()
+                    self._parser.add_argument(*argspec, dest=arg, required=False,
+                        default=default, action=action)
+                else:
+                    self._parser.add_argument(*argspec, dest=arg, required=False,
+                        default=default, type=unicode)
+            else:
+                metavar = arg
+                if arg == self._greedy_arg:
+                    metavar += '...'
+                self._parser.add_argument(dest=arg, metavar=metavar, type=unicode)
+        if self._varargs:
+            self._parser.usage = self._parser.format_usage().rstrip() + ' ...\n'
+
+    def _format_output(self, output):
+        if not output:
+            return None
+        elif isinstance(output, basestring):
+            ret = [output] # a single string
+        else:
+            ret = list(output) # probably a generator
+        return map(to_unicode, ret)
+
+    def __call__(self, app, source, channel, args):
+        self._parser.reset()
+        try:
+            if self._varargs or self._greedy:
+                namespace, remaining = self._parser.parse_known_args(args)
+            else:
+                namespace = self._parser.parse_args(args)
+                remaining = []
+        except _ParserExit, e:
+            raise _CommandAborted(e.message)
+        kwargs = namespace.__dict__
+        if self._greedy:
+            # Merge last arg with remaining args
+            greedy_value = ' '.join([kwargs[self._greedy_arg]] + remaining)
+            kwargs[self._greedy_arg] = greedy_value
+            remaining = []
+        with app.test_request_context():
+            return self._format_output(
+                self._func(source, channel, *remaining, **kwargs))
+
+    def __hash__(self):
+        return hash((self.name, self._func))
+
+    def __eq__(self, other):
+        return self.name == other.name and self._func == other._func
+
+    def __ne__(self, other):
+        return not (self == other)
+
+
+class _ParserExit(Exception): pass
+
+class _BotArgumentParser(argparse.ArgumentParser):
+    def __init__(self, *args, **kwargs):
+        self.output = ''
+        super(_BotArgumentParser, self).__init__(*args, **kwargs)
+
+    def reset(self):
+        self.output = ''
+
+    def print_usage(self, file=None):
+        self.output += self.format_usage()
+
+    def print_help(self, file=None):
+        self.output += self.format_help()
+
+    def exit(self, status=0, message=None):
+        if message:
+            self.output += message
+        raise _ParserExit(self.output)
