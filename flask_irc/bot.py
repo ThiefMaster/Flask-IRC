@@ -477,7 +477,7 @@ class BotModule(object):
     def __init__(self, name, import_name=None, logger_name=None):
         self._import_name = import_name
         self.name = name
-        self._logger_name = logger_name
+        self.logger_name = logger_name
         self._reload_module = reload
         self.g = _ModuleState()
         self.bot = None
@@ -496,10 +496,10 @@ class BotModule(object):
             self._trigger_event(READY)
 
     def _init_logger(self):
-        if not self._logger_name:
+        if not self.logger_name:
             self.logger = self.bot.logger
         else:
-            self.logger = self.bot.logger.getChild(self._logger_name)
+            self.logger = self.bot.logger.getChild(self.logger_name)
             if self.bot.app.debug:
                 # Nasty hack. But it works.
                 self.logger.__class__ = self.bot.logger.__class__
