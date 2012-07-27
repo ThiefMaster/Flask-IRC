@@ -31,12 +31,15 @@ CONNECT = 'connect'
 DISCONNECT = 'disconnect'
 READY = 'ready'
 TERMINATE = 'terminate'
-BOT_EVENTS = (CONNECT, DISCONNECT, READY, TERMINATE)
+BEFORE_COMMAND = 'before_command'
+BOT_EVENTS = (CONNECT, DISCONNECT, READY, TERMINATE, BEFORE_COMMAND)
 # Module event types
 INIT = 'init'
 RELOAD = 'reload'
 UNLOAD = 'unload'
 MOD_EVENTS = BOT_EVENTS + (INIT, RELOAD, UNLOAD)
+# Events that are relayed to all modules
+COMMON_EVENTS = tuple(set(MOD_EVENTS) - set((BEFORE_COMMAND,)))
 
 modules = {}
 
@@ -233,12 +236,15 @@ class Bot(object):
             self.send('NOTICE %s :%s' % (msg.source.nick, e))
             return
         if cmd:
-            self._run_command(msg, channel, cmd, args)
+            with self.app.test_request_context():
+                self._run_command(msg, channel, cmd, args)
 
     def _run_command(self, msg, channel, cmd, args):
         try:
-            ret = cmd(self.app, msg.source, channel, args)
-        except _CommandAborted, e:
+            self._trigger_event(BEFORE_COMMAND, msg, cmd)
+            cmd.module._trigger_event(BEFORE_COMMAND, msg, cmd)
+            ret = cmd(msg.source, channel, args)
+        except CommandAborted, e:
             self.send_multi('NOTICE %s :%%s' % msg.source.nick, unicode(e).splitlines())
             return
         else:
@@ -260,8 +266,9 @@ class Bot(object):
             raise ValueError('Unknown event name')
         for handler in self._events.get(evt, []):
             handler(*args)
-        for module in self.modules.itervalues():
-            module._trigger_event(evt, *args)
+        if evt in COMMON_EVENTS:
+            for module in self.modules.itervalues():
+                module._trigger_event(evt, *args)
 
     def _connected(self):
         self._trigger_event(CONNECT)
@@ -559,8 +566,11 @@ class BotModule(object):
     def __repr__(self):
         return '<BotModule(%s)>' % self.name
 
+    def __str__(self):
+        return self.name
 
-class _CommandAborted(Exception): pass
+
+class CommandAborted(Exception): pass
 
 class _BotCommand(object):
     def __init__(self, module, name, func, greedy):
@@ -623,7 +633,7 @@ class _BotCommand(object):
             ret = list(output) # probably a generator
         return map(to_unicode, ret)
 
-    def __call__(self, app, source, channel, args):
+    def __call__(self, source, channel, args):
         self._parser.reset()
         try:
             if self._varargs or self._greedy:
@@ -632,16 +642,14 @@ class _BotCommand(object):
                 namespace = self._parser.parse_args(args)
                 remaining = []
         except _ParserExit, e:
-            raise _CommandAborted(e.message)
+            raise CommandAborted(e.message)
         kwargs = namespace.__dict__
         if self._greedy:
             # Merge last arg with remaining args
             greedy_value = ' '.join([kwargs[self._greedy_arg]] + remaining)
             kwargs[self._greedy_arg] = greedy_value
             remaining = []
-        with app.test_request_context():
-            return self._format_output(
-                self._func(source, channel, *remaining, **kwargs))
+        return self._format_output(self._func(source, channel, *remaining, **kwargs))
 
     def __hash__(self):
         return hash((self.name, self._func))
@@ -651,6 +659,9 @@ class _BotCommand(object):
 
     def __ne__(self, other):
         return not (self == other)
+
+    def __repr__(self):
+        return "<BotCommand('%s', '%s', %r)>" % (self.module, self.name, self._func)
 
 
 class _ParserExit(Exception): pass
