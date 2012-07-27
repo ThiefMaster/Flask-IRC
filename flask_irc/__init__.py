@@ -22,7 +22,7 @@ except ImportErrror:
     def colored(msg, *args, **kwargs):
         return msg
 
-__all__ = ['Bot', 'BotModule', 'register_module']
+__all__ = ['Bot', 'BotModule', 'register_module', 'CommandAborted']
 
 NONBLOCKING = (errno.EAGAIN, errno.EWOULDBLOCK)
 STOPSIGNALS = {signal.SIGINT: 'SIGINT', signal.SIGTERM: 'SIGTERM'}
