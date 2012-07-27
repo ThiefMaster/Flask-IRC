@@ -4,6 +4,13 @@ from ..bot import module_list as bot_module_list
 
 admin = BotModule('Admin', __name__)
 
+@admin.event('init')
+def admin_init(state=None):
+    if state:
+        admin.g = state
+    else:
+        admin.g.confirm = set()
+
 @admin.command('module load')
 def module_load(source, channel, module):
     """Loads a module.
@@ -58,3 +65,16 @@ def module_list(source, channel, active=False):
             for mod in modules)
     for line in lst:
         yield '  ' + line
+
+@admin.command('die')
+def die(source, channel):
+    """Terminates the bot."""
+    if source.source in admin.g.confirm:
+        admin.bot.logger.warn('Terminated by %s' % source)
+        admin.bot.loop.stop()
+    else:
+        admin.g.confirm.add(source.source)
+        def _expire():
+            admin.g.confirm.remove(source.source)
+        admin.bot.after(5, _expire)
+        return 'Re-run this command within five seconds to confirm it.'
