@@ -596,7 +596,10 @@ class _BotCommand(object):
         self._make_parser()
 
     def _make_parser(self):
-        description = self.longhelp and self.longhelp.replace('\n', ' ')
+        description = self.longhelp or self.shorthelp
+        if description:
+            # Let argparse deal with wrapping the help
+            description = description.replace('\n', ' ')
         self._parser = _BotArgumentParser(prog=self.name, description=description)
         args, varargs, keywords, defaults = inspect.getargspec(self._func)
         if keywords:
