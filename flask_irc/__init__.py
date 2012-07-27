@@ -545,6 +545,15 @@ class BotModule(object):
             return f
         return decorator
 
+    def decorate(self, decorator):
+        """Applies the decorator on all registered command functions.
+
+        This is used to restrict the privileges of built-in modules since all
+        commands are public by default which is usually not suitable for a
+        production environment."""
+        for cmd in self._commands.itervalues():
+            cmd._func = decorator(cmd._func)
+
     def command(self, name, greedy=False):
         """A decorator to register a command
 
