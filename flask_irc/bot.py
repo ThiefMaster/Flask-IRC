@@ -622,9 +622,9 @@ class _BotCommand(object):
                         default=default, action=action)
                 else:
                     self._parser.add_argument(*argspec, dest=arg, required=False,
-                        default=default, type=unicode)
+                        default=default, type=unicode, metavar=arg.upper())
             else:
-                metavar = arg
+                metavar = arg.upper()
                 if arg == self._greedy_arg:
                     metavar += '...'
                 self._parser.add_argument(dest=arg, metavar=metavar, type=unicode)
