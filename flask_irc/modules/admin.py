@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 from ..bot import BotModule, CommandAborted
+from ..bot import module_list as bot_module_list
 
 admin = BotModule('Admin', __name__)
 
@@ -39,3 +40,21 @@ def module_reload(source, channel, module):
     if not admin.bot.modules[module].reload():
         raise CommandAborted('The module %s could not be reloaded.' % module)
     return 'The module %s has been reloaded.' % module
+
+@admin.command('module list')
+def module_list(source, channel, active=False):
+    """Shows a list of all modules.
+
+    Shows a list of all modules. If the 'active' switch is present, only
+    currently active modules are shown.
+    """
+    if active:
+        yield 'Active modules:'
+        lst = sorted(admin.bot.modules)
+    else:
+        yield 'Available modules (* = active):'
+        modules = set(admin.bot.modules) | set(bot_module_list)
+        lst = sorted('%s%s' % (mod, '*' if mod in admin.bot.modules else '')
+            for mod in modules)
+    for line in lst:
+        yield '  ' + line
