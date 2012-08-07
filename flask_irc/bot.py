@@ -231,7 +231,8 @@ class Bot(object):
             self.send('NOTICE %s :%s' % (msg.source.nick, e))
             return
         if cmd:
-            with self.app.test_request_context():
+            base_url = self.app.config.get('BASE_URL')
+            with self.app.test_request_context(base_url=base_url):
                 self._run_command(msg, channel, cmd, args)
 
     def _run_command(self, msg, channel, cmd, args):
