@@ -521,9 +521,13 @@ class BotModule(object):
                 break
         if not mod_var:
             return False
+        try:
+            pymod = reload(pymod)
+        except Exception, e:
+            self.logger.error('Could not reload module: %s' % e)
+            return False
         self.bot._unregister_module(self)
         self._trigger_event(RELOAD)
-        pymod = reload(pymod)
         mod = getattr(pymod, mod_var)
         module_list[mod.name] = mod # re-register new module
         mod.init_bot(self.bot, _state=self.g)
