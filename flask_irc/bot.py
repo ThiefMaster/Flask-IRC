@@ -9,6 +9,7 @@ import pyev
 import signal
 import socket
 import sys
+import werkzeug.exceptions
 from datetime import datetime
 
 from .structs import CommandStorage
@@ -240,6 +241,9 @@ class Bot(object):
             ret = cmd(msg.source, channel, args)
         except CommandAborted, e:
             self.send_multi('NOTICE %s :%%s' % msg.source.nick, unicode(e).splitlines())
+            return
+        except werkzeug.exceptions.Forbidden:
+            self.send('NOTICE %s :Access denied.' % msg.source.nick)
             return
         else:
             log = '(%s) [%s]: %s %s' % (channel or '', msg.source.nick, cmd.name,
