@@ -51,6 +51,7 @@ class Bot(object):
         self.loop = pyev.default_loop()
         self.sock = None
         self.watcher = None
+        self._stop_loop = False
         self._writebuf = ''
         self._readbuf = ''
         self._handlers = {} # irc events (numerics/commands)
@@ -119,6 +120,20 @@ class Bot(object):
         for watcher in self._sigwatchers:
             watcher.start()
         self.loop.start()
+
+    def stop(self, graceful=True):
+        """Stop the bot and its event loop.
+
+        If the graceful flag is set, the write queue is flushed before
+        the event loop is stopped.
+        """
+        if not graceful:
+            self.loop.stop()
+        else:
+            self.watcher.stop()
+            self.watcher.set(self.watcher.fd, pyev.EV_WRITE)
+            self.watcher.start()
+            self._stop_loop = True
 
     def send(self, line):
         """Send a line to the IRC server"""
@@ -344,6 +359,9 @@ class Bot(object):
             self._io_read()
         if revents & pyev.EV_WRITE:
             self._io_write()
+        if self._stop_loop and not (self.watcher.events & pyev.EV_WRITE):
+            self.loop.stop()
+            self._stop_loop = False
 
     def _io_read(self):
         try:

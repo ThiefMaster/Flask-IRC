@@ -66,12 +66,16 @@ def module_list(source, channel, active=False):
     for line in lst:
         yield '  ' + line
 
-@admin.command('die')
-def die(source, channel):
+@admin.command('die', greedy=True)
+def die(source, channel, reason, force=False, ):
     """Terminates the bot."""
     if source.source in admin.g.confirm:
-        admin.bot.logger.warn('Terminated by %s' % source)
-        admin.bot.loop.stop()
+        msg = 'Terminated by %s' % source
+        if reason:
+            msg += ': %s' % reason
+        admin.bot.logger.warn(msg)
+        admin.bot.send('QUIT :%s' % reason or 'Received DIE')
+        admin.bot.stop(graceful=not force)
     else:
         admin.g.confirm.add(source.source)
         def _expire():
