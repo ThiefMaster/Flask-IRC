@@ -169,13 +169,24 @@ class Bot(object):
         return decorator
 
     def after(self, delay, func):
-        """Creates a timer that calls func after delay seconds"""
+        """Creates a timer that calls 'func' after 'delay' seconds"""
         def cb(watcher, revents):
             self._timers.remove(watcher)
             func()
         tmr = pyev.Timer(delay, 0, self.loop, cb)
         tmr.start()
         self._timers.append(tmr)
+
+    def every(self, interval):
+        """A decorator to call the decorated function regularly."""
+        def decorator(f):
+            def cb(watcher, revents):
+                f()
+            tmr = pyev.Timer(interval, interval, self.loop, cb)
+            tmr.start()
+            self._timers.append(tmr)
+            return f
+        return decorator
 
     def load_module(self, name):
         """Loads a module"""
@@ -208,6 +219,9 @@ class Bot(object):
         # Remove module's handlers
         for cmd, f in self._module_handlers.get(module.name, []):
             self._handlers[cmd].remove(f)
+        # Stop module's timers
+        for watcher in module._timers:
+            watcher.stop()
         self._module_handlers.pop(module.name, None)
         self.logger.debug('Unregistered module %s' % module.name)
 
@@ -506,6 +520,8 @@ class BotModule(object):
         self.bot = None
         self._events = {}
         self._commands = {}
+        self._timers = []
+        self._timer_factories = []
         if self.name not in module_list:
             # Register if the module is new (i.e. not just reloaded)
             module_list[self.name] = self
@@ -517,6 +533,8 @@ class BotModule(object):
         self._trigger_event(INIT, _state)
         if self.bot.ready:
             self._trigger_event(READY)
+        for func in self._timer_factories:
+            func()
 
     def _init_logger(self):
         if not self.logger_name:
@@ -567,6 +585,30 @@ class BotModule(object):
             raise ValueError('Unknown event name')
         def decorator(f):
             self._events.setdefault(evt, []).append(f)
+            return f
+        return decorator
+
+    def after(self, delay, func):
+        """Creates a timer that calls 'func' after 'delay' seconds"""
+        def cb(watcher, revents):
+            self._timers.remove(watcher)
+            func()
+        tmr = pyev.Timer(delay, 0, self.bot.loop, cb)
+        tmr.start()
+        self._timers.append(tmr)
+
+    def every(self, interval):
+        """A decorator to call the decorated function regularly."""
+        def decorator(f):
+            def cb(watcher, revents):
+                f()
+            def _start_timer():
+                tmr = pyev.Timer(interval, interval, self.bot.loop, cb)
+                tmr.start()
+                self._timers.append(tmr)
+            self._timer_factories.append(_start_timer)
+            if self.bot:
+                _start_timer()
             return f
         return decorator
 
