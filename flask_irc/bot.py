@@ -48,7 +48,7 @@ class Bot(object):
         self.nick = None
         self.server = None
         self.ready = False
-        self.loop = pyev.default_loop()
+        self.loop = None
         self.sock = None
         self.watcher = None
         self._stop_loop = False
@@ -73,7 +73,6 @@ class Bot(object):
 
     def init_app(self, app):
         self.app = app
-        self.loop.debug = app.debug
         app.config.setdefault('IRC_SERVER_BIND', None)
         app.config.setdefault('IRC_SERVER_HOST', '127.0.0.1')
         app.config.setdefault('IRC_SERVER_PORT', 6667)
@@ -86,8 +85,6 @@ class Bot(object):
         app.config.setdefault('IRC_DEBUG', False)
         app.config.setdefault('IRC_MODULES', [])
         self._init_logger()
-        delay = self.app.config['IRC_RECONNECT_DELAY']
-        self._reconnect_tmr = pyev.Timer(delay, delay, self.loop, self._reconnect_cb)
 
     def _init_logger(self):
         if not self._logger_name:
@@ -111,6 +108,10 @@ class Bot(object):
 
     def run(self):
         """Start the bot and its event loop"""
+        self.loop = pyev.default_loop()
+        self.loop.debug = self.app.debug
+        delay = self.app.config['IRC_RECONNECT_DELAY']
+        self._reconnect_tmr = pyev.Timer(delay, delay, self.loop, self._reconnect_cb)
         for name in self.app.config['IRC_MODULES']:
             self.load_module(name)
         self.logger.info('Starting event loop')
