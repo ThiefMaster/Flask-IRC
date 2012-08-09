@@ -628,7 +628,9 @@ class _BotCommand(object):
             # Let argparse deal with wrapping the help
             description = description.replace('\n', ' ')
         self._parser = _BotArgumentParser(prog=self.name, description=description)
-        args, varargs, keywords, defaults = inspect.getargspec(self._func)
+        # HACK: We need the original signature in case of decorator usage.
+        inner_func = getattr(self._func, '_wrapped', self._func)
+        args, varargs, keywords, defaults = inspect.getargspec(inner_func)
         if keywords:
             raise ValueError('A command function cannot accept **kwargs')
         if self._greedy and varargs:
