@@ -43,7 +43,7 @@ def module_reload(source, channel, module):
     noticable side-effects.
     """
     if module not in admin.bot.modules:
-        raise CommandAborted('The module %s is not be loaded.' % module)
+        raise CommandAborted('The module %s is not loaded.' % module)
     if not admin.bot.modules[module].reload():
         raise CommandAborted('The module %s could not be reloaded.' % module)
     return 'The module %s has been reloaded.' % module
