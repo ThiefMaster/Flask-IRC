@@ -41,3 +41,10 @@ def trim_docstring(docstring):
         trimmed.pop(0)
     # Return a single string:
     return '\n'.join(trimmed)
+
+def convert_formatting(s):
+    """Converts $b, $u, $c, etc. to mirc-style codes"""
+    s = s.replace('$b', '\002') # bold
+    s = s.replace('$u', '\037') # underline
+    s = s.replace('$c', '\003') # color
+    return s

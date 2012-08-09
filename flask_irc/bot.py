@@ -13,7 +13,7 @@ import werkzeug.exceptions
 from datetime import datetime
 
 from .structs import CommandStorage
-from .utils import to_unicode, trim_docstring
+from .utils import to_unicode, trim_docstring, convert_formatting
 
 try:
     from termcolor import cprint, colored
@@ -271,7 +271,8 @@ class Bot(object):
             cmd.module._trigger_event(BEFORE_COMMAND, msg, cmd)
             ret = cmd(msg.source, channel, args)
         except CommandAborted, e:
-            self.send_multi('NOTICE %s :%%s' % msg.source.nick, unicode(e).splitlines())
+            exc_reason = convert_formatting(to_unicode(str(e)))
+            self.send_multi('NOTICE %s :%%s' % msg.source.nick, exc_reason.splitlines())
             return
         except werkzeug.exceptions.Forbidden:
             self.send('NOTICE %s :Access denied.' % msg.source.nick)
@@ -713,7 +714,7 @@ class _BotCommand(object):
             ret = [output] # a single string
         else:
             ret = list(output) # probably a generator
-        return map(to_unicode, ret)
+        return map(convert_formatting, map(to_unicode, ret))
 
     def __call__(self, source, channel, args):
         self._parser.reset()
