@@ -256,7 +256,7 @@ class Bot(object):
                 return
             line = line[len(trigger):]
         try:
-            cmd, args = self._commands.lookup(line)
+            cmd, args = self._commands.lookup(line.strip())
         except ValueError, e:
             self.send('NOTICE %s :%s' % (msg.source.nick, e))
             return
