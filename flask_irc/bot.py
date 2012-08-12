@@ -271,7 +271,7 @@ class Bot(object):
             cmd.module._trigger_event(BEFORE_COMMAND, msg, cmd)
             ret = cmd(msg.source, channel, args)
         except CommandAborted, e:
-            exc_reason = convert_formatting(to_unicode(str(e)))
+            exc_reason = convert_formatting(to_unicode(e.message))
             self.send_multi('NOTICE %s :%%s' % msg.source.nick, exc_reason.splitlines())
             return
         except werkzeug.exceptions.Forbidden:
