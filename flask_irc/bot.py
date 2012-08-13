@@ -55,7 +55,6 @@ class Bot(object):
         self._writebuf = ''
         self._readbuf = ''
         self._handlers = {} # irc events (numerics/commands)
-        self._module_handlers = {} # handlers registered by modules
         self._events = {} # special events (disconnect etc.)
         self._timers = []
         self.modules = {}
@@ -149,14 +148,10 @@ class Bot(object):
         for item in data:
             self.send(fmt % (item or ' '))
 
-    def on(self, cmd, _module=None):
+    def on(self, cmd):
         """A decorator to register a handler for an IRC command"""
         def decorator(f):
             self._handlers.setdefault(cmd, []).append(f)
-            # Record module handlers
-            inst = getattr(f, 'im_self', None)
-            if isinstance(inst, BotModule):
-                self._module_handlers.setdefault(inst.name, []).append((cmd, f))
             return f
         return decorator
 
@@ -217,13 +212,9 @@ class Bot(object):
         # Remove module's commands
         for cmd, func in module._commands.iteritems():
             del self._commands[cmd]
-        # Remove module's handlers
-        for cmd, f in self._module_handlers.get(module.name, []):
-            self._handlers[cmd].remove(f)
         # Stop module's timers
         for watcher in module._timers:
             watcher.stop()
-        self._module_handlers.pop(module.name, None)
         self.logger.debug('Unregistered module %s' % module.name)
 
     def trigger_ready(self):
@@ -290,6 +281,8 @@ class Bot(object):
         msg = IRCMessage(line)
         for handler in self._handlers.get(msg.cmd, []):
             handler(msg)
+        for module in self.modules.itervalues():
+            module._handle_cmd(msg)
 
     def _trigger_event(self, evt, *args):
         if evt not in BOT_EVENTS:
@@ -520,6 +513,7 @@ class BotModule(object):
         self._reload_module = reload
         self.g = _ModuleState()
         self.bot = None
+        self._handlers = {}
         self._events = {}
         self._commands = {}
         self._timers = []
@@ -581,6 +575,13 @@ class BotModule(object):
         self.bot._unregister_module(self)
         self._trigger_event(UNLOAD)
 
+    def on(self, cmd):
+        """A decorator to register a handler for an IRC command"""
+        def decorator(f):
+            self._handlers.setdefault(cmd, []).append(f)
+            return f
+        return decorator
+
     def event(self, evt):
         """A decorator to register a handler for an event"""
         if evt not in MOD_EVENTS:
@@ -634,6 +635,10 @@ class BotModule(object):
             self._commands[name] = _BotCommand(self, name, f, greedy)
             return f
         return decorator
+
+    def _handle_cmd(self, msg):
+        for handler in self._handlers.get(msg.cmd, []):
+            handler(msg)
 
     def _trigger_event(self, evt, *args):
         if evt not in MOD_EVENTS:
