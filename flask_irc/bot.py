@@ -268,7 +268,7 @@ class Bot(object):
         else:
             log = '(%s) [%s]: %s %s' % (channel or '', msg.source.nick, cmd.name,
                 ' '.join(args))
-            cmd.module.logger.info(log.rstrip())
+            cmd.module.logger.getChild('cmd').info(log.rstrip())
         if not ret:
             return
         self.send_multi('NOTICE %s :%%s' % msg.source.nick, ret)
