@@ -90,9 +90,6 @@ class Bot(object):
             self.logger = app.logger
         else:
             self.logger = self.app.logger.getChild(self._logger_name)
-            if self.app.debug:
-                # Nasty hack. But it works.
-                self.logger.__class__ = self.app.logger.__class__
 
     def _log_io(self, direction, line):
         if not self.app.config['IRC_DEBUG'] or not sys.stdout.isatty():
@@ -537,9 +534,6 @@ class BotModule(object):
             self.logger = self.bot.logger
         else:
             self.logger = self.bot.logger.getChild(self.logger_name)
-            if self.bot.app.debug:
-                # Nasty hack. But it works.
-                self.logger.__class__ = self.bot.logger.__class__
 
     def reload(self):
         """Reloads the module (if it's reloadable)"""
