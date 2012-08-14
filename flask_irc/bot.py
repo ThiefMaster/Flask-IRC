@@ -710,7 +710,7 @@ class _BotCommand(object):
         if not output:
             return None
         elif isinstance(output, basestring):
-            ret = [output] # a single string
+            ret = output.splitlines() # a single string
         else:
             ret = list(output) # probably a generator
         return map(convert_formatting, map(to_unicode, ret))
