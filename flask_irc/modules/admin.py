@@ -67,7 +67,7 @@ def module_list(source, channel, active=False):
         yield '  ' + line
 
 @admin.command('die', greedy=True)
-def die(source, channel, reason, force=False, ):
+def die(source, channel, reason, force=False):
     """Terminates the bot."""
     if source.source in admin.g.confirm:
         msg = 'Terminated by %s' % source
