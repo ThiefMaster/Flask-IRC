@@ -17,7 +17,7 @@ from .utils import to_unicode, trim_docstring, convert_formatting
 
 try:
     from termcolor import cprint, colored
-except ImportErrror:
+except ImportError:
     def cprint(msg, *args, **kwargs):
         print msg
     def colored(msg, *args, **kwargs):
