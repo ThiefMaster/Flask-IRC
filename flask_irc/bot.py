@@ -87,7 +87,7 @@ class Bot(object):
 
     def _init_logger(self):
         if not self._logger_name:
-            self.logger = app.logger
+            self.logger = self.app.logger
         else:
             self.logger = self.app.logger.getChild(self._logger_name)
 
