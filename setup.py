@@ -16,7 +16,7 @@ setup(
     author_email='adrian@planetcoding.net',
     description='Flask extension to create an IRC bot',
     long_description=__doc__,
-    packages=['flask_irc'],
+    packages=['flask_irc', 'flask_irc.modules'],
     zip_safe=False,
     platforms='any',
     install_requires=[
