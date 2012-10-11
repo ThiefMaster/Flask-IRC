@@ -12,7 +12,7 @@ import sys
 import werkzeug.exceptions
 from datetime import datetime
 
-from .structs import CommandStorage
+from .structs import CommandStorage, IRCMessage
 from .utils import to_unicode, trim_docstring, convert_formatting
 
 try:
@@ -426,75 +426,6 @@ class Bot(object):
         self._reconnect_tmr.stop()
         self.logger.debug('Reconnecting')
         self._connect()
-
-
-class IRCMessage(object):
-    def __init__(self, line):
-        line = to_unicode(line)
-        self.line = line
-        if line[0] == ':':
-            source, line = line[1:].split(' ', 1)
-            self.source = IRCSource(source)
-        else:
-            self.source = IRCSourceNone()
-        cmd, line = line.split(' ', 1)
-        self.cmd = cmd.upper()
-        if line.startswith(':'):
-            self.args = [line[1:]]
-        elif ' :' in line:
-            line, long_arg = line.split(' :', 1)
-            self.args = line.split(' ') + [long_arg]
-        else:
-            self.args = line.split(' ')
-
-    def __getitem__(self, key):
-        return self.args[key]
-
-    def __str__(self):
-        return '<source=%s, cmd=%s, args=%r>' % (self.source, self.cmd, self.args)
-
-    def __repr__(self):
-        if self.source:
-            return '<IRCMessage(%r) from %s>' % (self.line, self.source)
-        else:
-            return '<IRCMessage(%r)>' % self.line
-
-
-class IRCSource(object):
-    def __init__(self, source):
-        self.source = source
-        self.complete = '!' in source
-        if self.complete:
-            self.nick, ident_host = source.split('!', 1)
-            self.ident, self.host = ident_host.split('@', 1)
-        else:
-            self.nick = source
-            self.ident = self.host = None
-
-    def __str__(self):
-        if self.complete:
-            return '%s!%s@%s' % (self.nick, self.ident, self.host)
-        else:
-            return '%s' % self.nick
-
-    def __repr__(self):
-        return 'IRCSource(%r)' % self.source
-
-
-class IRCSourceNone(object):
-    def __init__(self):
-        self.source = None
-        self.complete = False
-        self.nick = self.ident = self.host = None
-
-    def __nonzero__(self):
-        return False
-
-    def __str__(self):
-        return ''
-
-    def __repr__(self):
-        return 'IRCSourceNone()'
 
 
 class _ModuleState(object):
