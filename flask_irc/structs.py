@@ -9,11 +9,11 @@ class IRCMessage(object):
         line = to_unicode(line)
         self.line = line
         if line[0] == ':':
-            source, line = line[1:].split(' ', 1)
+            source, _, line = line[1:].partition(' ')
             self.source = IRCSource(source)
         else:
             self.source = IRCSourceNone()
-        cmd, line = line.split(' ', 1)
+        cmd, _, line = line.partition(' ')
         self.cmd = cmd.upper()
         if line.startswith(':'):
             self.args = [line[1:]]
