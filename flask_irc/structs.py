@@ -16,7 +16,9 @@ class IRCMessage(object):
         cmd, _, line = line.partition(' ')
         self.cmd = cmd.upper()
         self.numeric = int(cmd) if cmd.isdigit() else None
-        if line.startswith(':'):
+        if not line:
+            self.args = []
+        elif line.startswith(':'):
             self.args = [line[1:]]
         elif ' :' in line:
             line, long_arg = line.split(' :', 1)
