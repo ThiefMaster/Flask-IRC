@@ -250,8 +250,9 @@ class Bot(object):
             return
         if cmd:
             base_url = self.app.config.get('BASE_URL')
-            with self.app.test_request_context(base_url=base_url):
-                self._run_command(msg, channel, cmd, args)
+            with self.app.app_context():
+                with self.app.test_request_context(base_url=base_url):
+                    self._run_command(msg, channel, cmd, args)
 
     def _run_command(self, msg, channel, cmd, args):
         try:
