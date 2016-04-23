@@ -407,10 +407,12 @@ class Bot(object):
                 self.watcher.start()
 
     def _close(self):
-        self.sock.close()
-        self.sock = None
-        self.watcher.stop()
-        self.watcher = None
+        if self.sock is not None:
+            self.sock.close()
+            self.sock = None
+        if self.watcher is not None:
+            self.watcher.stop()
+            self.watcher = None
         self._readbuf = ''
         self._writebuf = ''
         self._trigger_event(DISCONNECT)
