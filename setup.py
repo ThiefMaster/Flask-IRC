@@ -21,7 +21,7 @@ setup(
     platforms='any',
     install_requires=[
         'Flask',
-        'pyev',
+        'pyev-static',
     ],
     classifiers=[
         'Development Status :: 3 - Alpha',
